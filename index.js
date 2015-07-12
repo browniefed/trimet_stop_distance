@@ -4,15 +4,63 @@ var restify = require('restify'),
     _ = require('lodash'),
     request = require('superagent');
 
+//SETUP
 var API_KEY = (config && config.TRIMET_API_KEY) || process.env.TRIMET_API_KEY;
-var STOPS = {}
+var STOPS = {};
+var VEHICLES = {};
 
-// var server = restify.createServer();
-// var io = socketio.listen(server);
 
-// server.listen(process.env.PORT || 8080, function() {
-//   console.log('%s listening at %s', server.name, server.url);
-// });
+//SERVER
+var server = restify.createServer();
+var io = socketio.listen(server);
+
+server.listen(process.env.PORT || 8080, function() {
+  console.log('%s listening at %s', server.name, server.url);
+});
+
+var USER_STOPS = {
+    '100_8354': true
+};
+
+io.on('connection', function (socket) {
+    socket.on('follow_stop', function(data) {
+        var stop = data.stop,
+            routeId = data.routeId,
+            room = route + '_' + stop;
+        
+        addRoomRoute(room);
+        socket.join(room);
+    });
+});
+
+function updateVehicles() {
+    loadVehiclePositions(function(vehicles) {
+        VEHICLES = vehicles;
+
+        var userStops = getUserStops(),
+            routeVehicles,
+            vehicleDirection,
+            stopDistance;
+
+        _.each(userStops, function(stop) {
+
+            vehicleDirection = determineDirection(STOPS[stop.routeId].dirs);
+            routeVehicles = getRouteVehicles(VEHICLES, stop.routeId, vehicleDirection);
+           
+            stopDistance = _(routeVehicles).map(function(vehicle) {
+                return getDistanceFromStop(STOPS, stop.routeId, vehicleDirection, vehicle.lastLocId, stop.stopId);
+            }).filter(function(distance) {
+                return distance != -1
+            }).min();
+
+            io.to(stop.routeId + '_' + stop.stopId).emit('postion_update', stopDistance);
+        });
+
+        setTimeout(updateVehicles, 5000);
+    });
+}
+
+
 
 function getDistanceFromStop (stops, routeId, direction, fromStop, toStop) {
     var stopList = stops[routeId].dirs[direction].stops;
@@ -24,30 +72,48 @@ function getDistanceFromStop (stops, routeId, direction, fromStop, toStop) {
         return stop.locid == toStop;
     });
 
-    return toStopIndex - fromStopIndex;
 
+    var distance = toStopIndex - fromStopIndex;
+
+    //has the vehicle already passed our stop
+    if (distance < 0) {
+        return -1;
+    }
+    return distance;
+}
+
+function addRoomRoute(room) {
+    USER_STOPS[room] = true;
+}
+
+function getUserStops() {
+    var split;
+    return _.map(USER_STOPS, function(v, stop) {
+        split = stop.split('_');
+        return {
+            routeId: split[0],
+            stopId: split[1]
+        }
+    });
+}
+
+function determineDirection(stops, stopId) {
+    var dir0 = _.find(stops[0], function(stop) {
+        return stop.locid == stopId;
+    });
+    return dir0 === -1 ? 1 : 0;
+}
+
+function getRouteVehicles(vehicles, routeId, dir) {
+    return _.filter(vehicles, function(vehicle) {
+        return vehicle.routeId == routeId && vehicle.dir == dir;
+    });
 }
 
 
 loadRoutes(function(stops) {
     STOPS = stops;
-    // (getDistanceFromStop(STOPS, 100, 0, 9828, 8338));
-
-    loadVehiclePositions(function(vehicles) {
-
-        var route100 = _.filter(vehicles, function(vehicle) {
-            return vehicle.routeId == 100 && vehicle.dir == 0;
-        });
-
-        _.each(route100, function(vehicle, vehicleId) {
-            var position = getDistanceFromStop(STOPS, 100, 0, vehicle.lastLocId, 8359);
-
-            console.log(vehicle.vehicleId + 'is ' + position + ' stops away from the end');
-
-        })
-
-
-    })
+    updateVehicles();
 });
 
 
