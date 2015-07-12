@@ -1,0 +1,17 @@
+{
+  "name": "busposition",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jason Brown <browniefed@gmail.com> (http://browniefed.com/)",
+  "license": "MIT",
+  "dependencies": {
+    "lodash": "^3.10.0",
+    "restify": "^3.0.3",
+    "socket.io": "^1.3.5",
+    "superagent": "^1.2.0"
+  }
+}
