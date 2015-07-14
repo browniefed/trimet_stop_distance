@@ -1,35 +1,42 @@
-var restify = require('restify'),
-    socketio = require('socket.io'),
-    config = require('./config'),
+var config = require('./config'),
     _ = require('lodash'),
     request = require('superagent');
+
+var app = require('http').createServer(handler);
+
+var io = require('socket.io')(app);
+
+app.listen(process.env.PORT || 8080);
+
+
 
 //SETUP
 var API_KEY = (config && config.TRIMET_API_KEY) || process.env.TRIMET_API_KEY;
 var STOPS = {};
 var VEHICLES = {};
+var POSITION_CACHE = {};
 
-
-//SERVER
-var server = restify.createServer();
-var io = socketio.listen(server);
-
-server.listen(process.env.PORT || 8080, function() {
-  console.log('%s listening at %s', server.name, server.url);
-});
+function handler(req, res) {
+    res.writeHead(200);
+    res.end('');
+}
 
 var USER_STOPS = {
-    '100_8354': true
 };
 
 io.on('connection', function (socket) {
     socket.on('follow_stop', function(data) {
-        var stop = data.stop,
+        var stopId = data.stop,
             routeId = data.routeId,
-            room = route + '_' + stop;
+            room = routeId + '_' + stopId;
         
         addRoomRoute(room);
         socket.join(room);
+
+        if (POSITION_CACHE[room]) {
+            socket.emit('postion_update', stopDistance);
+        }
+
     });
 });
 
@@ -40,9 +47,12 @@ function updateVehicles() {
         var userStops = getUserStops(),
             routeVehicles,
             vehicleDirection,
-            stopDistance;
+            stopDistance,
+            userStop;
 
         _.each(userStops, function(stop) {
+
+            userStop = stop.routeId + '_' + stop.stopId;
 
             vehicleDirection = determineDirection(STOPS[stop.routeId].dirs);
             routeVehicles = getRouteVehicles(VEHICLES, stop.routeId, vehicleDirection);
@@ -53,7 +63,10 @@ function updateVehicles() {
                 return distance != -1
             }).min();
 
-            io.to(stop.routeId + '_' + stop.stopId).emit('postion_update', stopDistance);
+            if (POSITION_CACHE[userStop] != stopDistance) {
+                io.to(userStop).emit('postion_update', stopDistance);
+            }
+
         });
 
         setTimeout(updateVehicles, 5000);
@@ -98,10 +111,11 @@ function getUserStops() {
 }
 
 function determineDirection(stops, stopId) {
-    var dir0 = _.find(stops[0], function(stop) {
+    //direciton is wrong
+    var dir0 = _.find(stops[0].stops, function(stop) {
         return stop.locid == stopId;
     });
-    return dir0 === -1 ? 1 : 0;
+    return !dir0 ? 1 : 0;
 }
 
 function getRouteVehicles(vehicles, routeId, dir) {
@@ -141,15 +155,17 @@ function loadRoutes(cb) {
         };
 
         if (route.dir[0]) {
-            formatted[route.route].dirs[0] = {
+            formatted[route.route].dirs[route.dir[0].dir] = {
                 name: route.dir[0].desc,
+                dir: route.dir[0].dir,
                 stops: route.dir[0].stop
             }
         }
 
         if (route.dir[1]) {
-            formatted[route.route].dirs[1] = {
+            formatted[route.route].dirs[route.dir[1].dir] = {
                 name: route.dir[1].desc,
+                dir: route.dir[1].dir,
                 stops: route.dir[1].stop
             }   
         }
@@ -165,6 +181,13 @@ function loadVehiclePositions(cb) {
         appid: API_KEY
     }).end(function(err, res) {
         var vehicles = {};
+
+        if (err) {
+            return;
+        }
+        if (!(res && res.body && res.body.resultSet)) {
+            return;
+        }
 
         _.each(res.body.resultSet.vehicle, function(vehicle) {
             vehicles[vehicle.vehicleID] = {
