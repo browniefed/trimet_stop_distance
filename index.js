@@ -34,8 +34,18 @@ io.on('connection', function (socket) {
         socket.join(room);
 
         if (POSITION_CACHE[room]) {
-            socket.emit('postion_update', stopDistance);
+            socket.emit('postion_update', {
+                stopId: stopId,
+                routeId: routeId,
+                position: POSITION_CACHE[room]
+            });
         }
+
+        socket.emit('stop_info', {
+            name: STOPS[routeId].name,
+            routeId: routeId,
+            stopId: stopId
+        });
 
     });
 });
@@ -64,7 +74,11 @@ function updateVehicles() {
             }).min();
 
             if (POSITION_CACHE[userStop] != stopDistance) {
-                io.to(userStop).emit('postion_update', stopDistance);
+                io.to(userStop).emit('postion_update', {
+                    stopId: stop.stopId,
+                    routeId: stop.routeId,
+                    position: stopDistance
+                });
             }
 
         });
