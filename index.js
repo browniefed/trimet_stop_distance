@@ -61,10 +61,9 @@ function updateVehicles() {
             userStop;
 
         _.each(userStops, function(stop) {
-
             userStop = stop.routeId + '_' + stop.stopId;
 
-            vehicleDirection = determineDirection(STOPS[stop.routeId].dirs);
+            vehicleDirection = determineDirection(STOPS[stop.routeId].dirs, stop.stopId);
             routeVehicles = getRouteVehicles(VEHICLES, stop.routeId, vehicleDirection);
            
             stopDistance = _(routeVehicles).map(function(vehicle) {
