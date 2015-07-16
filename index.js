@@ -1,14 +1,20 @@
 var config = require('./config'),
     _ = require('lodash'),
-    request = require('superagent');
+    request = require('superagent'),
+    restify = require('restify');
 
-var app = require('http').createServer(handler);
+var server = restify.createServer();
 
-var io = require('socket.io')(app);
+var io = require('socket.io')(server.server);
 
-app.listen(process.env.PORT || 8080);
+server.get('/search', function(req, res) {
+    //Search for stops/routes/etc based on query
+    res.send('searching');
+})
 
-
+server.listen(process.env.PORT || 5000, function() {
+  console.log('%s listening at %s', server.name, server.url);
+});
 
 //SETUP
 var API_KEY = (config && config.TRIMET_API_KEY) || process.env.TRIMET_API_KEY;
@@ -67,7 +73,7 @@ function updateVehicles() {
             routeVehicles = getRouteVehicles(VEHICLES, stop.routeId, vehicleDirection);
            
             stopDistance = _(routeVehicles).map(function(vehicle) {
-                return getDistanceFromStop(STOPS, stop.routeId, vehicleDirection, vehicle.lastLocId, stop.stopId);
+                return getDistanceFromStop(STOPS, stop.routeId, vehicleDirection, vehicle.nextLocId, stop.stopId);
             }).filter(function(distance) {
                 return distance != -1
             }).min();
