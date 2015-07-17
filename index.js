@@ -1,34 +1,57 @@
 var config = require('./config'),
     _ = require('lodash'),
     request = require('superagent'),
-    restify = require('restify');
+    restify = require('restify'),
+    qs = require('querystring'),
+    loki = require('lokijs');
 
-var server = restify.createServer();
+//DB
+var db = new loki('trimet');
 
-var io = require('socket.io')(server.server);
-
-server.get('/search', function(req, res) {
-    //Search for stops/routes/etc based on query
-    res.send('searching');
-})
-
-server.listen(process.env.PORT || 5000, function() {
-  console.log('%s listening at %s', server.name, server.url);
-});
+var DB_ROUTES = db.addCollection('routes');
+var DB_STOPS = db.addCollection('stops');
+var DB_VEHICLES = db.addCollection('vehicles');
 
 //SETUP
 var API_KEY = (config && config.TRIMET_API_KEY) || process.env.TRIMET_API_KEY;
 var STOPS = {};
 var VEHICLES = {};
 var POSITION_CACHE = {};
+var USER_STOPS = {};
+var STOP_INDEX = {};
 
-function handler(req, res) {
-    res.writeHead(200);
-    res.end('');
-}
+//SERVER
+var server = restify.createServer();
+var io = require('socket.io')(server.server);
 
-var USER_STOPS = {
-};
+//SERVER SETUP
+server.get('/search', function(req, res) {
+    //stops
+    var query = qs.parse(req.query());
+    var stopId = query.stopId,
+        stopResponse;
+
+    if (STOPS[stopId]) {
+         stopResponse = STOPS[stopId];
+    } else {
+        var stops = _.filter(STOPS, function(v, key) {
+            return _.contains(key + '', stopId);
+        });
+
+        stopResponse = stops;
+    }
+
+    res.send(stopResponse);
+});
+
+server.use(restify.CORS());
+server.use(restify.queryParser());
+server.use(restify.gzipResponse());
+server.use(restify.bodyParser());
+
+server.listen(process.env.PORT || 5000, function() {
+  console.log('%s listening at %s', server.name, server.url);
+});
 
 io.on('connection', function (socket) {
     socket.on('follow_stop', function(data) {
@@ -145,7 +168,12 @@ function getRouteVehicles(vehicles, routeId, dir) {
 
 
 loadRoutes(function(stops) {
-    STOPS = stops;
+    STOPS = stops.routes;
+    STOP_INDEX = stops.stops;
+
+    DB_ROUTES.insert(_.toArray(STOPS));
+    DB_STOPS.insert(_.toArray(STOP_INDEX));
+
     updateVehicles();
 });
 
@@ -160,33 +188,58 @@ function loadRoutes(cb) {
         dir: true, 
         json:true
     }).end(function(err, res) {
-       var formatted = {};
+       var formatted = {
+            routes: {},
+            stops: {}
+       };
 
        _.each(res.body.resultSet.route, function(route) {
-        formatted[route.route] = {
-            name: route.desc,
-            routeId: route.route,
-            type: route.type,
-            dirs: {
-                '0': {},
-                '1': {}
-            }
-        };
+
+            formatted.routes[route.route] = {
+                name: route.desc,
+                routeId: route.route,
+                type: route.type,
+                dirs: {
+                    '0': {},
+                    '1': {}
+                }
+            };
 
         if (route.dir[0]) {
-            formatted[route.route].dirs[route.dir[0].dir] = {
+            formatted.routes[route.route].dirs[route.dir[0].dir] = {
                 name: route.dir[0].desc,
                 dir: route.dir[0].dir,
                 stops: route.dir[0].stop
             }
+
+            _.each(route.dir[0].stop, function(stop) {
+                formatted.stops[stop.locid] = formatted.stops[stop.locid] || {
+                    routes: []
+                };
+
+                formatted.stops[stop.locid] = _.extend(formatted.stops[stop.locid], stop);
+                formatted.stops[stop.locid].routes.push(route.route);
+                formatted.stops[stop.locid].routes = _.uniq(formatted.stops[stop.locid].routes);
+            })
         }
 
         if (route.dir[1]) {
-            formatted[route.route].dirs[route.dir[1].dir] = {
+            formatted.routes[route.route].dirs[route.dir[1].dir] = {
                 name: route.dir[1].desc,
                 dir: route.dir[1].dir,
                 stops: route.dir[1].stop
-            }   
+            }
+
+
+            _.each(route.dir[1].stop, function(stop) {
+                formatted.stops[stop.locid] = formatted.stops[stop.locid] || {
+                    routes: []
+                };
+
+                formatted.stops[stop.locid] = _.extend(formatted.stops[stop.locid], stop);
+                formatted.stops[stop.locid].routes.push(route.route);
+                formatted.stops[stop.locid].routes = _.uniq(formatted.stops[stop.locid].routes);
+            });
         }
 
        });
