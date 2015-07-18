@@ -100,8 +100,8 @@ function updateVehicles() {
             stopDistance = _(routeVehicles).map(function(vehicle) {
                 return getDistanceFromStop(STOPS, stop.routeId, vehicleDirection, vehicle.nextLocId, stop.stopId);
             }).filter(function(distance) {
-                return distance != -1
-            }).min();
+                return (distance != -1 || distance <= 8);
+            });
 
             if (POSITION_CACHE[userStop] != stopDistance) {
                 io.to(userStop).emit('postion_update', {
