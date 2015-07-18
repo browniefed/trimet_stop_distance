@@ -28,20 +28,17 @@ var io = require('socket.io')(server.server);
 server.get('/search', function(req, res) {
     //stops
     var query = qs.parse(req.query());
-    var stopId = query.stopId,
+    var stopId = (query.stopId + '').trim(),
         stopResponse;
 
-    if (STOPS[stopId]) {
-         stopResponse = STOPS[stopId];
-    } else {
-        var stops = _.filter(STOPS, function(v, key) {
-            return _.contains(key + '', stopId);
-        });
-
-        stopResponse = stops;
+    if (STOP_INDEX[stopId]) {
+        res.setHeader('content-type', 'application/json');
+        res.send(STOP_INDEX[stopId]);
+        return;
     }
 
-    res.send(stopResponse);
+    res.send(404, {error: true})
+
 });
 
 server.use(restify.CORS());
