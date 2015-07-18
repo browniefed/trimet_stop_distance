@@ -52,6 +52,11 @@ server.listen(process.env.PORT || 5000, function() {
 
 io.on('connection', function (socket) {
     socket.on('follow_stop', function(data) {
+
+        if (!STOP_INDEX[data.stop] || !STOPS[data.routeId]) {
+            return;
+        }
+
         var stopId = data.stop,
             routeId = data.routeId,
             room = routeId + '_' + stopId;
