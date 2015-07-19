@@ -31,9 +31,19 @@ server.get('/search', function(req, res) {
     var stopId = (query.stopId + '').trim(),
         stopResponse;
 
+    var searchStops = DB_STOPS.find({
+        searchDesc: {
+            $contains: (stopId + '').toLowerCase()
+        }
+    });
+
     if (STOP_INDEX[stopId]) {
         res.setHeader('content-type', 'application/json');
-        res.send(STOP_INDEX[stopId]);
+        res.send([STOP_INDEX[stopId]]);
+        return;
+    } else if (!_.isEmpty(searchStops)) {
+        res.setHeader('content-type', 'application/json');
+        res.send(searchStops.slice(0, 30));
         return;
     }
 
@@ -219,6 +229,7 @@ function loadRoutes(cb) {
                     routes: []
                 };
 
+                stop.searchDesc = (stop.desc || '').toLowerCase();
                 formatted.stops[stop.locid] = _.extend(formatted.stops[stop.locid], stop);
                 formatted.stops[stop.locid].routes.push(route.route);
                 formatted.stops[stop.locid].routes = _.uniq(formatted.stops[stop.locid].routes);
@@ -238,6 +249,7 @@ function loadRoutes(cb) {
                     routes: []
                 };
 
+                stop.searchDesc = (stop.desc || '').toLowerCase();
                 formatted.stops[stop.locid] = _.extend(formatted.stops[stop.locid], stop);
                 formatted.stops[stop.locid].routes.push(route.route);
                 formatted.stops[stop.locid].routes = _.uniq(formatted.stops[stop.locid].routes);
