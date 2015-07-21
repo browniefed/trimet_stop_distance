@@ -19,6 +19,7 @@ var VEHICLES = {};
 var POSITION_CACHE = {};
 var USER_STOPS = {};
 var STOP_INDEX = {};
+var UPDATE_INTERVAL = 5000;
 
 //SERVER
 var server = restify.createServer();
@@ -123,7 +124,7 @@ function updateVehicles() {
 
         });
 
-        setTimeout(updateVehicles, 5000);
+        setTimeout(updateVehicles, UPDATE_INTERVAL);
     });
 }
 
