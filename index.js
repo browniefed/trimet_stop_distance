@@ -83,7 +83,9 @@ io.on('connection', function (socket) {
             });
         }
 
+
         socket.emit('stop_info', {
+            stopName: STOP_INDEX[stopId].desc,
             name: STOPS[routeId].name,
             routeId: routeId,
             stopId: stopId
@@ -276,6 +278,7 @@ function loadVehiclePositions(cb) {
             return;
         }
 
+
         _.each(res.body.resultSet.vehicle, function(vehicle) {
             vehicles[vehicle.vehicleID] = {
                 vehcileId: vehicle.vehicleID,
@@ -285,7 +288,8 @@ function loadVehiclePositions(cb) {
                 type: vehicle.type == 'bus' ? 'B' : 'R',
                 dir: vehicle.direction,
                 lastLocId: vehicle.lastLocID,
-                nextLocId: vehicle.nextLocID
+                nextLocId: vehicle.nextLocID,
+                estimated: vehicle.estimated
             }
         });
 
