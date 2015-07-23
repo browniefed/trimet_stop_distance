@@ -48,7 +48,7 @@ server.get('/search', function(req, res) {
         return;
     }
 
-    res.send(404, {error: true})
+    res.send({});
 
 });
 
